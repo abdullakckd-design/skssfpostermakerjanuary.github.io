@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Poster Studio</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --surface: #1e293b;
+      --surface-border: #334155;
+      --primary: #06b6d4;
+      --primary-hover: #0891b2;
+      --accent: #10b981;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+    
+    header { background: var(--surface); border-bottom: 1px solid var(--surface-border); padding: 1rem 1.5rem; display: flex; justify-content: space-between; align-items: center; }
+    .brand { font-size: 1.25rem; font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 0.5rem; }
+    .badge { background: #3b82f6; color: #fff; font-size: 0.75rem; padding: 0.2rem 0.6rem; border-radius: 999px; }
+    
+    .btn { background: var(--surface-border); color: var(--text); border: none; padding: 0.6rem 1.2rem; border-radius: 6px; font-weight: 600; cursor: pointer; transition: 0.2s; font-size: 0.9rem; }
+    .btn:hover { opacity: 0.9; }
+    .btn-primary { background: var(--primary); color: #000; }
+    .btn-accent { background: var(--accent); color: #000; }
+
+    main { flex: 1; max-width: 1300px; margin: 0 auto; width: 100%; padding: 1.5rem; }
+    .workspace-grid { display: grid; grid-template-columns: 360px 1fr; gap: 1.5rem; }
+    @media (max-width: 850px) { .workspace-grid { grid-template-columns: 1fr; } }
+
+    .card { background: var(--surface); border: 1px solid var(--surface-border); border-radius: 10px; padding: 1.25rem; height: fit-content; }
+    .card-title { font-size: 1rem; font-weight: 700; margin-bottom: 1rem; color: var(--primary); }
+    .form-group { margin-bottom: 1rem; }
+    label { display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.4rem; }
+    input[type="text"], input[type="file"], select { width: 100%; background: #0f172a; border: 1px solid var(--surface-border); padding: 0.6rem; border-radius: 6px; color: var(--text); }
+    input[type="range"] { width: 100%; accent-color: var(--primary); }
+
+    .canvas-container { background: #020617; border: 2px dashed var(--surface-border); border-radius: 10px; padding: 1rem; display: flex; justify-content: center; align-items: center; min-height: 540px; overflow: hidden; position: relative; }
+    canvas { max-width: 100%; height: auto; max-height: 75vh; box-shadow: 0 10px 25px rgba(0,0,0,0.5); user-select: none; touch-action: none; }
+
+    .tip-box { background: rgba(6, 182, 212, 0.12); border-left: 3px solid var(--primary); padding: 0.75rem; border-radius: 4px; font-size: 0.82rem; color: #cbd5e1; margin-bottom: 1.2rem; line-height: 1.4; }
+
+    .hidden { display: none !important; }
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 100; }
+    .modal-card { background: var(--surface); border: 1px solid var(--surface-border); border-radius: 10px; padding: 2rem; width: 340px; }
+    footer { text-align: center; padding: 1.5rem; font-size: 0.8rem; color: var(--text-muted); border-top: 1px solid var(--surface-border); }
+    .secret-trigger { color: #334155; text-decoration: none; cursor: pointer; }
+    .secret-trigger:hover { color: var(--primary); }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <span>🖼️ Poster Studio</span>
+      <span id="role-badge" class="badge">Customer Mode</span>
+    </div>
+    <div id="admin-actions" class="hidden" style="display: flex; gap: 0.5rem;">
+      <button class="btn btn-accent" id="btn-save-permanent">💾 Save & Publish Template</button>
+      <button class="btn" id="btn-exit-admin">Exit Admin</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- CUSTOMER PANEL -->
+    <div id="customer-view" class="workspace-grid">
+      <div class="card">
+        <h2 class="card-title">1. Insert Your Photo</h2>
+        <div class="form-group">
+          <label>Select Photo</label>
+          <input type="file" id="user-file" accept="image/*">
+        </div>
+
+        <h2 class="card-title" style="margin-top: 1.5rem;">2. Adjust Photo Alignment</h2>
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.8rem;">💡 Click & drag directly on the image to pan.</p>
+        <div class="form-group">
+          <label>Zoom (<span id="zoom-val">100%</span>)</label>
+          <input type="range" id="user-zoom" min="0.2" max="3" step="0.05" value="1">
+        </div>
+        <div class="form-group">
+          <label>Rotation (<span id="rot-val">0°</span>)</label>
+          <input type="range" id="user-rot" min="-180" max="180" step="1" value="0">
+        </div>
+        <div class="form-group" style="display: flex; gap: 0.5rem;">
+          <button class="btn" style="flex:1" id="btn-flip">⇄ Flip</button>
+          <button class="btn" style="flex:1" id="btn-reset-pos">↺ Reset</button>
+        </div>
+
+        <h2 class="card-title" style="margin-top: 1.5rem;">3. Download Result</h2>
+        <button class="btn btn-primary" style="width: 100%; padding: 0.8rem;" id="btn-download">⬇️ Download High-Res Poster</button>
+      </div>
+
+      <div class="canvas-container">
+        <canvas id="main-canvas"></canvas>
+      </div>
+    </div>
+
+    <!-- ADMIN STUDIO -->
+    <div id="admin-view" class="workspace-grid hidden">
+      <div class="card">
+        <h2 class="card-title">Upload Poster Frame</h2>
+        <div class="form-group">
+          <label>PNG Master Poster (with cutout/blank space)</label>
+          <input type="file" id="admin-file" accept="image/png,image/webp">
+        </div>
+
+        <div class="tip-box">
+          ✋ <strong>Adjust With Hand:</strong> Click & drag the box inside to reposition. Grab any of the <strong>white circle handles</strong> to resize freely!
+        </div>
+
+        <h2 class="card-title">Frame Settings</h2>
+        <div class="form-group">
+          <label>Slot Shape</label>
+          <select id="slot-shape">
+            <option value="round">Rounded Rectangle (Custom Corners)</option>
+            <option value="under">Under Frame (Transparent Cutout)</option>
+            <option value="circle">Full Circle</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label>Corner Radius: <strong id="radius-val" style="color:var(--primary);">30px</strong> (Up to 500px)</label>
+          <input type="range" id="slot-radius" min="0" max="500" step="5" value="30">
+        </div>
+
+        <h2 class="card-title" style="margin-top: 1.2rem;">Manual Coordinate Inputs</h2>
+        <div class="form-group">
+          <label>X Position: <span id="slot-x-val">20%</span></label>
+          <input type="range" id="slot-x" min="0" max="100" value="20">
+        </div>
+        <div class="form-group">
+          <label>Y Position: <span id="slot-y-val">25%</span></label>
+          <input type="range" id="slot-y" min="0" max="100" value="25">
+        </div>
+        <div class="form-group">
+          <label>Width: <span id="slot-w-val">60%</span></label>
+          <input type="range" id="slot-w" min="5" max="100" value="60">
+        </div>
+        <div class="form-group">
+          <label>Height: <span id="slot-h-val">50%</span></label>
+          <input type="range" id="slot-h" min="5" max="100" value="50">
+        </div>
+      </div>
+
+      <div class="canvas-container">
+        <canvas id="admin-canvas"></canvas>
+      </div>
+    </div>
+  </main>
+
+  <!-- PASSWORD MODAL -->
+  <div id="passcode-modal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <h3 style="margin-bottom: 1rem;">Staff Passcode Required</h3>
+      <input type="password" id="passcode-input" placeholder="Password (default: admin123)" style="margin-bottom: 1rem;">
+      <div style="display: flex; gap: 0.5rem;">
+        <button class="btn btn-primary" style="flex:1" id="btn-submit-passcode">Unlock</button>
+        <button class="btn" style="flex:1" id="btn-close-modal">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <p>© Poster Creation Studio &nbsp;|&nbsp; <a class="secret-trigger" id="open-passcode-link">Staff Portal</a></p>
+  </footer>
+
+  <script>
+    // --- DEFAULT POSTER FILE SETTING ---
+    const DEFAULT_POSTER_SRC = "poster.png";
+
+    // --- INDEXED-DB PERSISTENCE ---
+    const DB_NAME = "PersistentPosterDB";
+    const STORE_NAME = "posters";
+
+    function openDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, 1);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME);
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    async function dbSet(key, value) {
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, "readwrite");
+        tx.objectStore(STORE_NAME).put(value, key);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      });
+    }
+
+    async function dbGet(key) {
+      const db = await openDB();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, "readonly");
+        const req = tx.objectStore(STORE_NAME).get(key);
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    }
+
+    let state = {
+      isAdmin: false,
+      templateImg: null,
+      slot: { x: 0.20, y: 0.25, w: 0.60, h: 0.50, shape: 'round', radius: 30 },
+      userImg: null,
+      userTransform: { x: 0, y: 0, scale: 1, rotate: 0, flipH: false },
+      isUserDragging: false,
+      userDragStart: { x: 0, y: 0 },
+      dragHandle: null,
+      dragOrigin: null
+    };
+
+    const mainCanvas = document.getElementById('main-canvas');
+    const ctx = mainCanvas.getContext('2d');
+    const adminCanvas = document.getElementById('admin-canvas');
+    const adminCtx = adminCanvas.getContext('2d');
+
+    // --- INITIALIZATION ---
+    window.addEventListener('DOMContentLoaded', async () => {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('admin') === 'true' || params.get('admin') === 'admin123') {
+        unlockAdmin();
+      }
+
+      // 1. Try loading from IndexedDB first (Admin overrides)
+      try {
+        const savedData = await dbGet("active_poster");
+        if (savedData && savedData.imageData) {
+          const img = new Image();
+          img.onload = () => {
+            state.templateImg = img;
+            if (savedData.slot) state.slot = { ...state.slot, ...savedData.slot };
+            syncAdminSliders();
+            renderAll();
+          };
+          img.src = savedData.imageData;
+          return;
+        }
+      } catch (e) {
+        console.warn("DB load skipped:", e);
+      }
+
+      // 2. Fallback: Automatically load poster.png for all Netlify customers
+      if (DEFAULT_POSTER_SRC) {
+        const defaultImg = new Image();
+        defaultImg.onload = () => {
+          state.templateImg = defaultImg;
+          syncAdminSliders();
+          renderAll();
+        };
+        defaultImg.onerror = () => {
+          drawDefaultPlaceholder();
+        };
+        defaultImg.src = DEFAULT_POSTER_SRC;
+      } else {
+        drawDefaultPlaceholder();
+      }
+    });
+
+    function drawDefaultPlaceholder() {
+      mainCanvas.width = 800;
+      mainCanvas.height = 1000;
+      ctx.fillStyle = "#1e293b";
+      ctx.fillRect(0, 0, 800, 1000);
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "24px system-ui";
+      ctx.textAlign = "center";
+      ctx.fillText("poster.png not found in folder.", 400, 480);
+      ctx.font = "18px system-ui";
+      ctx.fillText("Upload poster.png to your folder, or use Admin Studio.", 400, 520);
+    }
+
+    // --- ADMIN UPLOAD & SAVE ---
+    document.getElementById('admin-file').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          state.templateImg = img;
+          renderAll();
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    document.getElementById('btn-save-permanent').addEventListener('click', async () => {
+      if (!state.templateImg) {
+        alert("Upload a poster image first.");
+        return;
+      }
+      try {
+        await dbSet("active_poster", {
+          imageData: state.templateImg.src,
+          slot: state.slot
+        });
+        alert("✅ Success: Template & Slot saved!");
+      } catch (err) {
+        alert("Save failed: " + err.message);
+      }
+    });
+
+    // --- SLIDERS ---
+    function syncAdminSliders() {
+      document.getElementById('slot-x').value = state.slot.x * 100;
+      document.getElementById('slot-y').value = state.slot.y * 100;
+      document.getElementById('slot-w').value = state.slot.w * 100;
+      document.getElementById('slot-h').value = state.slot.h * 100;
+      document.getElementById('slot-shape').value = state.slot.shape;
+      document.getElementById('slot-radius').value = state.slot.radius || 0;
+      updateSliderTexts();
+    }
+
+    function updateSliderTexts() {
+      document.getElementById('slot-x-val').innerText = `${Math.round(state.slot.x * 100)}%`;
+      document.getElementById('slot-y-val').innerText = `${Math.round(state.slot.y * 100)}%`;
+      document.getElementById('slot-w-val').innerText = `${Math.round(state.slot.w * 100)}%`;
+      document.getElementById('slot-h-val').innerText = `${Math.round(state.slot.h * 100)}%`;
+      document.getElementById('radius-val').innerText = `${state.slot.radius || 0}px`;
+    }
+
+    ['slot-x', 'slot-y', 'slot-w', 'slot-h', 'slot-shape', 'slot-radius'].forEach(id => {
+      document.getElementById(id).addEventListener('input', () => {
+        state.slot.x = parseFloat(document.getElementById('slot-x').value) / 100;
+        state.slot.y = parseFloat(document.getElementById('slot-y').value) / 100;
+        state.slot.w = parseFloat(document.getElementById('slot-w').value) / 100;
+        state.slot.h = parseFloat(document.getElementById('slot-h').value) / 100;
+        state.slot.shape = document.getElementById('slot-shape').value;
+        state.slot.radius = parseInt(document.getElementById('slot-radius').value) || 0;
+        updateSliderTexts();
+        renderAll();
+      });
+    });
+
+    // --- HAND DRAGGING FOR ADMIN ---
+    function getAdminPointer(e) {
+      const rect = adminCanvas.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      return {
+        x: (clientX - rect.left) * (adminCanvas.width / rect.width),
+        y: (clientY - rect.top) * (adminCanvas.height / rect.height)
+      };
+    }
+
+    function getBoxHandles() {
+      const W = adminCanvas.width;
+      const H = adminCanvas.height;
+      const x = state.slot.x * W;
+      const y = state.slot.y * H;
+      const w = state.slot.w * W;
+      const h = state.slot.h * H;
+
+      return [
+        { type: 'tl', x: x, y: y, cursor: 'nwse-resize' },
+        { type: 'tr', x: x + w, y: y, cursor: 'nesw-resize' },
+        { type: 'bl', x: x, y: y + h, cursor: 'nesw-resize' },
+        { type: 'br', x: x + w, y: y + h, cursor: 'nwse-resize' },
+        { type: 't', x: x + w / 2, y: y, cursor: 'ns-resize' },
+        { type: 'b', x: x + w / 2, y: y + h, cursor: 'ns-resize' },
+        { type: 'l', x: x, y: y + h / 2, cursor: 'ew-resize' },
+        { type: 'r', x: x + w, y: y + h / 2, cursor: 'ew-resize' }
+      ];
+    }
+
+    function detectHit(pointer) {
+      const W = adminCanvas.width;
+      const H = adminCanvas.height;
+      const x = state.slot.x * W;
+      const y = state.slot.y * H;
+      const w = state.slot.w * W;
+      const h = state.slot.h * H;
+      const hr = Math.max(16, W * 0.018);
+
+      const handles = getBoxHandles();
+      for (const handle of handles) {
+        if (Math.hypot(pointer.x - handle.x, pointer.y - handle.y) <= hr) {
+          return { type: handle.type, cursor: handle.cursor };
+        }
+      }
+
+      if (pointer.x >= x && pointer.x <= x + w && pointer.y >= y && pointer.y <= y + h) {
+        return { type: 'move', cursor: 'move' };
+      }
+      return null;
+    }
+
+    function onAdminPointerDown(e) {
+      if (!state.templateImg) return;
+      const ptr = getAdminPointer(e);
+      const hit = detectHit(ptr);
+
+      if (hit) {
+        state.dragHandle = hit.type;
+        state.dragOrigin = {
+          ptrX: ptr.x,
+          ptrY: ptr.y,
+          x: state.slot.x,
+          y: state.slot.y,
+          w: state.slot.w,
+          h: state.slot.h
+        };
+        e.preventDefault();
+      }
+    }
+
+    function onAdminPointerMove(e) {
+      if (!state.templateImg) return;
+      const ptr = getAdminPointer(e);
+
+      if (!state.dragHandle) {
+        const hit = detectHit(ptr);
+        adminCanvas.style.cursor = hit ? hit.cursor : 'default';
+        return;
+      }
+
+      const dx = (ptr.x - state.dragOrigin.ptrX) / adminCanvas.width;
+      const dy = (ptr.y - state.dragOrigin.ptrY) / adminCanvas.height;
+      const orig = state.dragOrigin;
+
+      let newX = orig.x;
+      let newY = orig.y;
+      let newW = orig.w;
+      let newH = orig.h;
+
+      if (state.dragHandle === 'move') {
+        newX = Math.max(0, Math.min(1 - orig.w, orig.x + dx));
+        newY = Math.max(0, Math.min(1 - orig.h, orig.y + dy));
+      } else {
+        if (state.dragHandle.includes('r')) newW = Math.max(0.04, Math.min(1 - orig.x, orig.w + dx));
+        if (state.dragHandle.includes('b')) newH = Math.max(0.04, Math.min(1 - orig.y, orig.h + dy));
+        if (state.dragHandle.includes('l')) {
+          const clampedDx = Math.min(dx, orig.w - 0.04);
+          newX = Math.max(0, orig.x + clampedDx);
+          newW = orig.w - (newX - orig.x);
+        }
+        if (state.dragHandle.includes('t')) {
+          const clampedDy = Math.min(dy, orig.h - 0.04);
+          newY = Math.max(0, orig.y + clampedDy);
+          newH = orig.h - (newY - orig.y);
+        }
+      }
+
+      state.slot.x = newX;
+      state.slot.y = newY;
+      state.slot.w = newW;
+      state.slot.h = newH;
+
+      syncAdminSliders();
+      renderAll();
+    }
+
+    function onAdminPointerUp() { state.dragHandle = null; }
+
+    adminCanvas.addEventListener('mousedown', onAdminPointerDown);
+    window.addEventListener('mousemove', onAdminPointerMove);
+    window.addEventListener('mouseup', onAdminPointerUp);
+    adminCanvas.addEventListener('touchstart', onAdminPointerDown, { passive: false });
+    window.addEventListener('touchmove', onAdminPointerMove, { passive: false });
+    window.addEventListener('touchend', onAdminPointerUp);
+
+    // --- CUSTOMER CONTROLS ---
+    document.getElementById('user-file').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          state.userImg = img;
+          state.userTransform = { x: 0, y: 0, scale: 1, rotate: 0, flipH: false };
+          document.getElementById('user-zoom').value = 1;
+          document.getElementById('user-rot').value = 0;
+          document.getElementById('zoom-val').innerText = "100%";
+          document.getElementById('rot-val').innerText = "0°";
+          renderAll();
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    document.getElementById('user-zoom').addEventListener('input', (e) => {
+      state.userTransform.scale = parseFloat(e.target.value);
+      document.getElementById('zoom-val').innerText = `${Math.round(state.userTransform.scale * 100)}%`;
+      renderAll();
+    });
+
+    document.getElementById('user-rot').addEventListener('input', (e) => {
+      state.userTransform.rotate = parseInt(e.target.value);
+      document.getElementById('rot-val').innerText = `${state.userTransform.rotate}°`;
+      renderAll();
+    });
+
+    document.getElementById('btn-flip').addEventListener('click', () => {
+      state.userTransform.flipH = !state.userTransform.flipH;
+      renderAll();
+    });
+
+    document.getElementById('btn-reset-pos').addEventListener('click', () => {
+      state.userTransform = { x: 0, y: 0, scale: 1, rotate: 0, flipH: false };
+      document.getElementById('user-zoom').value = 1;
+      document.getElementById('user-rot').value = 0;
+      document.getElementById('zoom-val').innerText = "100%";
+      document.getElementById('rot-val').innerText = "0°";
+      renderAll();
+    });
+
+    mainCanvas.addEventListener('mousedown', (e) => {
+      if (!state.userImg) return;
+      state.isUserDragging = true;
+      state.userDragStart = { x: e.clientX - state.userTransform.x, y: e.clientY - state.userTransform.y };
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (!state.isUserDragging) return;
+      state.userTransform.x = e.clientX - state.userDragStart.x;
+      state.userTransform.y = e.clientY - state.userDragStart.y;
+      renderAll();
+    });
+    window.addEventListener('mouseup', () => { state.isUserDragging = false; });
+
+    // --- DRAWING & RENDERING ---
+    function drawRoundedPath(targetCtx, x, y, w, h, r) {
+      r = Math.min(r, w / 2, h / 2);
+      targetCtx.beginPath();
+      targetCtx.moveTo(x + r, y);
+      targetCtx.lineTo(x + w - r, y);
+      targetCtx.arcTo(x + w, y, x + w, y + r, r);
+      targetCtx.lineTo(x + w, y + h - r);
+      targetCtx.arcTo(x + w, y + h, x + w - r, y + h, r);
+      targetCtx.lineTo(x + r, y + h);
+      targetCtx.arcTo(x, y + h, x, y + h - r, r);
+      targetCtx.lineTo(x, y + r);
+      targetCtx.arcTo(x, y, x + r, y, r);
+      targetCtx.closePath();
+    }
+
+    function renderAll() {
+      if (!state.templateImg) return;
+      const W = state.templateImg.width;
+      const H = state.templateImg.height;
+
+      mainCanvas.width = W;
+      mainCanvas.height = H;
+      ctx.clearRect(0, 0, W, H);
+
+      const sx = state.slot.x * W;
+      const sy = state.slot.y * H;
+      const sw = state.slot.w * W;
+      const sh = state.slot.h * H;
+      const radius = state.slot.radius || 0;
+
+      if (state.slot.shape === 'under') {
+        if (state.userImg) {
+          ctx.save();
+          if (radius > 0) {
+            drawRoundedPath(ctx, sx, sy, sw, sh, radius);
+            ctx.clip();
+          }
+          drawUserImage(ctx, sx, sy, sw, sh);
+          ctx.restore();
+        }
+        ctx.drawImage(state.templateImg, 0, 0, W, H);
+      } else {
+        ctx.drawImage(state.templateImg, 0, 0, W, H);
+        if (state.userImg) {
+          ctx.save();
+          if (state.slot.shape === 'circle') {
+            ctx.beginPath();
+            ctx.arc(sx + sw / 2, sy + sh / 2, Math.min(sw, sh) / 2, 0, Math.PI * 2);
+            ctx.clip();
+          } else {
+            drawRoundedPath(ctx, sx, sy, sw, sh, radius);
+            ctx.clip();
+          }
+          drawUserImage(ctx, sx, sy, sw, sh);
+          ctx.restore();
+        }
+      }
+
+      if (state.isAdmin) {
+        adminCanvas.width = W;
+        adminCanvas.height = H;
+        adminCtx.clearRect(0, 0, W, H);
+        adminCtx.drawImage(state.templateImg, 0, 0, W, H);
+
+        adminCtx.save();
+        adminCtx.strokeStyle = "#06b6d4";
+        adminCtx.lineWidth = Math.max(4, W * 0.005);
+        adminCtx.fillStyle = "rgba(6, 182, 212, 0.25)";
+
+        if (state.slot.shape === 'circle') {
+          adminCtx.beginPath();
+          adminCtx.arc(sx + sw / 2, sy + sh / 2, Math.min(sw, sh) / 2, 0, Math.PI * 2);
+          adminCtx.fill();
+          adminCtx.stroke();
+        } else {
+          drawRoundedPath(adminCtx, sx, sy, sw, sh, radius);
+          adminCtx.fill();
+          adminCtx.stroke();
+        }
+
+        const handles = getBoxHandles();
+        const hr = Math.max(9, W * 0.012);
+
+        handles.forEach(h => {
+          adminCtx.beginPath();
+          adminCtx.arc(h.x, h.y, hr, 0, Math.PI * 2);
+          adminCtx.fillStyle = "#ffffff";
+          adminCtx.fill();
+          adminCtx.lineWidth = 3;
+          adminCtx.strokeStyle = "#0891b2";
+          adminCtx.stroke();
+        });
+
+        adminCtx.restore();
+      }
+    }
+
+    function drawUserImage(targetCtx, sx, sy, sw, sh) {
+      targetCtx.save();
+      const centerX = sx + sw / 2 + state.userTransform.x;
+      const centerY = sy + sh / 2 + state.userTransform.y;
+
+      targetCtx.translate(centerX, centerY);
+      targetCtx.rotate((state.userTransform.rotate * Math.PI) / 180);
+      targetCtx.scale(
+        state.userTransform.flipH ? -state.userTransform.scale : state.userTransform.scale,
+        state.userTransform.scale
+      );
+
+      const imgAspect = state.userImg.width / state.userImg.height;
+      const slotAspect = sw / sh;
+      let drawW, drawH;
+
+      if (imgAspect > slotAspect) {
+        drawH = sh;
+        drawW = sh * imgAspect;
+      } else {
+        drawW = sw;
+        drawH = sw / imgAspect;
+      }
+
+      targetCtx.drawImage(state.userImg, -drawW / 2, -drawH / 2, drawW, drawH);
+      targetCtx.restore();
+    }
+
+    // --- DOWNLOAD ---
+    document.getElementById('btn-download').addEventListener('click', () => {
+      if (!state.templateImg) {
+        alert("No template loaded.");
+        return;
+      }
+      const link = document.createElement('a');
+      link.download = `poster_${Date.now()}.png`;
+      link.href = mainCanvas.toDataURL('image/png', 1.0);
+      link.click();
+    });
+
+    // --- AUTH ---
+    function unlockAdmin() {
+      state.isAdmin = true;
+      document.getElementById('customer-view').classList.add('hidden');
+      document.getElementById('admin-view').classList.remove('hidden');
+      document.getElementById('admin-actions').classList.remove('hidden');
+      document.getElementById('role-badge').innerText = "Admin Studio";
+      document.getElementById('role-badge').style.background = "#06b6d4";
+      syncAdminSliders();
+      renderAll();
+    }
+
+    function lockAdmin() {
+      state.isAdmin = false;
+      document.getElementById('customer-view').classList.remove('hidden');
+      document.getElementById('admin-view').classList.add('hidden');
+      document.getElementById('admin-actions').classList.add('hidden');
+      document.getElementById('role-badge').innerText = "Customer Mode";
+      document.getElementById('role-badge').style.background = "#3b82f6";
+      renderAll();
+    }
+
+    document.getElementById('open-passcode-link').addEventListener('click', () => {
+      document.getElementById('passcode-modal').classList.remove('hidden');
+      document.getElementById('passcode-input').focus();
+    });
+
+    document.getElementById('btn-close-modal').addEventListener('click', () => {
+      document.getElementById('passcode-modal').classList.add('hidden');
+    });
+
+    document.getElementById('btn-submit-passcode').addEventListener('click', () => {
+      const code = document.getElementById('passcode-input').value;
+      if (code === "admin123") {
+        document.getElementById('passcode-modal').classList.add('hidden');
+        document.getElementById('passcode-input').value = "";
+        unlockAdmin();
+      } else {
+        alert("Incorrect passcode.");
+      }
+    });
+
+    document.getElementById('btn-exit-admin').addEventListener('click', lockAdmin);
+
+    window.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'a') {
+        e.preventDefault();
+        document.getElementById('passcode-modal').classList.remove('hidden');
+      }
+    });
+  </script>
+</body>
+</html>
